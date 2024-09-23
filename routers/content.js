@@ -1,8 +1,10 @@
 const express = require("express");
 const prisma = require("../prismaClient");
+const { auth, isOwner } = require("../middlewares/auth");
 
 const router = express.Router();
 
+//Posts
 router.get("/posts", async (req, res) => {
   try {
     const data = await prisma.post.findMany({
@@ -18,7 +20,6 @@ router.get("/posts", async (req, res) => {
     res.status(500).json({ error: e });
   }
 });
-
 router.get("/posts/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -36,8 +37,30 @@ router.get("/posts/:id", async (req, res) => {
     res.status(500).json({ error: e });
   }
 });
-
-router.delete("/posts/:id", async (req, res) => {
+router.post("/posts", auth, async (req, res) => {
+  const { content } = req.body;
+  if (!content) {
+    return res.status(400).json({ msg: "content required" });
+  }
+  const user = res.locals.user;
+  const post = await prisma.post.create({
+    data: {
+      content,
+      userId: user.id,
+    },
+  });
+  const data = await prisma.post.findUnique({
+    where: { id: Number(post.id) },
+    include: {
+      user: true,
+      comments: {
+        include: { user: true },
+      },
+    },
+  });
+  res.json(data);
+});
+router.delete("/posts/:id", isOwner("post"), async (req, res) => {
   const { id } = req.params;
 
   await prisma.comment.deleteMany({
@@ -51,7 +74,25 @@ router.delete("/posts/:id", async (req, res) => {
   res.sendStatus(204);
 });
 
-router.delete("/comments/:id", async (req, res) => {
+//Comments
+router.post("/comments", auth, async (req, res) => {
+  const { content, postId } = req.body;
+  if (!content || !postId) {
+    return
+    res.status(400).json({ msg: "content and postId required" });
+  }
+  const user = res.locals.user;
+  const comment = await prisma.comment.create({
+    data: {
+      content,
+      userId: Number(user.id),
+      postId: Number(postId),
+    },
+  });
+  comment.user = user;
+  res.json(comment);
+});
+router.delete("/comments/:id", isOwner("comment"), async (req, res) => {
   const { id } = req.params;
 
   await prisma.comment.delete({
