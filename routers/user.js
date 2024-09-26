@@ -6,7 +6,10 @@ const router = express.Router();
 router.get("/users", async (req, res) => {
   try {
     const data = await prisma.user.findMany({
-      include: { posts: true, comments: true },
+      include: {
+        posts: true, comments: true, followers: true,
+        following: true,
+      },
       orderBy: { id: "desc" },
       take: 20,
     });
@@ -21,7 +24,10 @@ router.get("/users/:id", async (req, res) => {
   try {
     const data = await prisma.user.findFirst({
       where: { id: Number(id) },
-      include: { posts: true, comments: true },
+      include: {
+        posts: true, comments: true, followers: true,
+        following: true,
+      },
     });
     res.json(data);
   } catch (e) {
@@ -73,14 +79,30 @@ router.post("/login", async (req, res) => {
       return res.json({ token, user });
     }
   }
-  
+
   res.status(401).json({ msg: "incorrect username or password" });
 });
 
 router.get("/verify", auth, async (req, res) => {
   const user = res.locals.user;
   res.json(user);
- });
- 
+});
+
+router.get("/search", async (req, res) => {
+  const { q } = req.query;
+  const data = await prisma.user.findMany({
+    where: {
+      name: {
+        contains: q,
+      },
+    },
+    include: {
+      followers: true,
+      following: true,
+    },
+    take: 20,
+  });
+  res.json(data);
+});
 
 module.exports = { userRouter: router };

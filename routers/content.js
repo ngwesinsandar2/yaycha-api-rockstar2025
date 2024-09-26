@@ -11,6 +11,7 @@ router.get("/posts", async (req, res) => {
       include: {
         user: true,
         comments: true,
+        likes: true,
       },
       orderBy: { id: "desc" },
       take: 20,
@@ -27,8 +28,9 @@ router.get("/posts/:id", async (req, res) => {
       where: { id: Number(id) },
       include: {
         user: true,
+        likes: true,
         comments: {
-          include: { user: true },
+          include: { user: true, likes: true, },
         },
       },
     });
@@ -100,6 +102,139 @@ router.delete("/comments/:id", isOwner("comment"), async (req, res) => {
   });
 
   res.sendStatus(204);
+});
+
+//Likes Posts
+router.post("/like/posts/:id", auth, async (req, res) => {
+  const { id } = req.params;
+  const user = res.locals.user;
+  const like = await prisma.postLike.create({
+    data: {
+      postId: Number(id),
+      userId: Number(user.id),
+    },
+  });
+  res.json({ like });
+});
+router.delete("/unlike/posts/:id", auth, async (req, res) => {
+  const { id } = req.params;
+  const user = res.locals.user;
+  await prisma.postLike.deleteMany({
+    where: {
+      postId: Number(id),
+      userId: Number(user.id),
+    },
+  });
+  res.json({ msg: `Unlike post ${id}` });
+});
+
+//Likes Comments
+router.post("/like/comments/:id", auth, async (req, res) => {
+  const { id } = req.params;
+  const user = res.locals.user;
+  const like = await prisma.commentLike.create({
+    data: {
+      commentId: Number(id),
+      userId: Number(user.id),
+    },
+  });
+  res.json({ like });
+});
+router.delete("/unlike/comments/:id", auth, async (req, res) => {
+  const { id } = req.params;
+  const user = res.locals.user;
+  await prisma.commentLike.deleteMany({
+    where: {
+      commentId: Number(id),
+      userId: Number(user.id),
+    },
+  });
+  res.json({ msg: `Unlike comment ${id}` });
+});
+
+router.get("/likes/posts/:id", async (req, res) => {
+  const { id } = req.params;
+  const data = await prisma.postLike.findMany({
+    where: {
+      postId: Number(id),
+    },
+    include: {
+      user: {
+        include: {
+          followers: true,
+          following: true,
+        },
+      },
+    },
+  });
+  res.json(data);
+});
+router.get("/likes/comments/:id", async (req, res) => {
+  const { id } = req.params;
+  const data = await prisma.commentLike.findMany({
+    where: {
+      commentId: Number(id),
+    },
+    include: {
+      user: {
+        include: {
+          followers: true,
+          following: true,
+        },
+      },
+    },
+  });
+  res.json(data);
+});
+
+//Follow / Unfollow
+router.post("/follow/:id", auth, async (req, res) => {
+  const user = res.locals.user;
+  const { id } = req.params;
+  const data = await prisma.follow.create({
+    data: {
+      followerId: Number(user.id),
+      followingId: Number(id),
+    },
+  });
+  res.json(data);
+});
+router.delete("/unfollow/:id", auth, async (req, res) => {
+  const user = res.locals.user;
+  const { id } = req.params;
+  await prisma.follow.deleteMany({
+    where: {
+      followerId: Number(user.id),
+      followingId: Number(id),
+    },
+  });
+  res.json({ msg: `Unfollow user ${id}` });
+});
+
+//Following Posts
+router.get("/following/posts", auth, async (req, res) => {
+  const user = res.locals.user;
+  const follow = await prisma.follow.findMany({
+    where: {
+      followerId: Number(user.id),
+    },
+  });
+  const users = follow.map(item => item.followingId);
+  const data = await prisma.post.findMany({
+    where: {
+      userId: {
+        in: users,
+      },
+    },
+    include: {
+      user: true,
+      comments: true,
+      likes: true,
+    },
+    orderBy: { id: "desc" },
+    take: 20,
+  });
+  res.json(data);
 });
 
 
