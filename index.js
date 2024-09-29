@@ -3,15 +3,18 @@ const prisma = require("./prismaClient");
 const cors = require("cors");
 const { contentRouter } = require("./routers/content");
 const { userRouter } = require("./routers/user");
+const { wsRouter } = require("./routers/ws");
 
 const app = express();
 
+require("express-ws")(app);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 //Routes
-app.use("/", userRouter);``
+app.use("/", wsRouter);
+app.use("/", userRouter);
 app.use("/content", contentRouter);
 
 // app.get("/info", (req, res) => {
